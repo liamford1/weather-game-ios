@@ -180,18 +180,13 @@ struct ContentView: View {
     }
     
     func newRandomLocation() {
-        let locations = [
-            "New York",
-            "Los Angeles",
-            "Chicago",
-            "Miami",
-            "Seattle",
-            "Denver",
-            "Phoenix",
-            "Boston"
-        ]
-        targetLocation = locations.randomElement() ?? "New York"
-        targetCoordinate = nil // Clear coordinate when using random location
+        Task {
+            let randomLocation = await LocationService.shared.getRandomLocation()
+            await MainActor.run {
+                targetLocation = randomLocation.name
+                targetCoordinate = randomLocation.coordinate
+            }
+        }
     }
     
     func resetGame() {
@@ -201,6 +196,8 @@ struct ContentView: View {
         currentPlayer = "Player 1"
         targetCoordinate = nil
         drinkingSeconds = 0
+        targetLocation = "Pyongyang"
+        targetCoordinate = nil
         newRandomLocation()
     }
 }
