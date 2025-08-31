@@ -10,7 +10,7 @@ import MapKit
 
 struct ContentView: View {
     @State private var currentPlayer = "Player 1"
-    @State private var targetLocation = "New York"
+    @State private var targetLocation = "Pyongyang, North Korea"
     @State private var targetCoordinate: CLLocationCoordinate2D?
     @State private var userGuess = ""
     @State private var actualTemp = 72
@@ -194,10 +194,12 @@ struct ContentView: View {
         score = 0
         userGuess = ""
         currentPlayer = "Player 1"
-        targetCoordinate = nil
         drinkingSeconds = 0
-        targetLocation = "Pyongyang"
+        
+        // Set to a known city initially, then get random location
+        targetLocation = "Pyongyang, North Korea"
         targetCoordinate = nil
+        
         newRandomLocation()
     }
 }

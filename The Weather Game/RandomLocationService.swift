@@ -17,7 +17,7 @@ class LocationService {
     /// Generates a random location with reverse geocoding to get a meaningful place name
     func getRandomLocation() async -> (coordinate: CLLocationCoordinate2D, name: String) {
         var attempts = 0
-        let maxAttempts = 10 // Prevent infinite loops
+        let maxAttempts = 15 // Increased attempts for better results
         
         while attempts < maxAttempts {
             // Generate random coordinate, but bias towards populated areas
@@ -32,12 +32,12 @@ class LocationService {
             do {
                 let placemarks = try await geocoder.reverseGeocodeLocation(location)
                 if let placemark = placemarks.first {
-                    // Try to get the most descriptive name available, prioritizing populated places
-                    let name = formatLocationName(from: placemark, coordinate: coordinate)
-                    
-                    // Skip if it's clearly in the middle of an ocean or uninhabited area
-                    if !isLikelyUninhabited(placemark: placemark) {
-                        return (coordinate, name)
+                    // Only proceed if we can get a real place name (not coordinates)
+                    if let locationName = extractRealLocationName(from: placemark) {
+                        // Skip if it's clearly in the middle of an ocean or uninhabited area
+                        if !isLikelyUninhabited(placemark: placemark) {
+                            return (coordinate, locationName)
+                        }
                     }
                 }
             } catch {
@@ -53,53 +53,52 @@ class LocationService {
     
     // MARK: - Private Helper Methods
     
-    /// Generate latitude with bias towards populated regions
-    private func generateWeightedLatitude() -> Double {
-        // Most populated areas are between -50 and 60 degrees latitude
-        let random = Double.random(in: 0...1)
-        
-        if random < 0.7 {
-            // 70% chance: populated temperate zones (-40 to 60)
-            return Double.random(in: -40...60)
-        } else if random < 0.9 {
-            // 20% chance: tropical zones (-23.5 to 23.5)
-            return Double.random(in: -23.5...23.5)
-        } else {
-            // 10% chance: anywhere else (-90 to 90)
-            return Double.random(in: -90...90)
-        }
-    }
-    
-    /// Format a nice location name from placemark data
-    private func formatLocationName(from placemark: CLPlacemark, coordinate: CLLocationCoordinate2D) -> String {
-        var name = "Unknown Location"
-        
+    /// Extract a real location name, return nil if only coordinates available
+    private func extractRealLocationName(from placemark: CLPlacemark) -> String? {
         // Priority order: city -> town -> administrative area -> country
         if let locality = placemark.locality {
-            name = locality
+            var name = locality
             if let country = placemark.country, country != "United States" {
                 name += ", \(country)"
             } else if let state = placemark.administrativeArea {
                 name += ", \(state)"
             }
+            return name
         } else if let subLocality = placemark.subLocality {
-            name = subLocality
+            var name = subLocality
             if let country = placemark.country {
                 name += ", \(country)"
             }
+            return name
         } else if let administrativeArea = placemark.administrativeArea {
-            name = administrativeArea
+            var name = administrativeArea
             if let country = placemark.country {
                 name += ", \(country)"
             }
+            return name
         } else if let country = placemark.country {
-            name = country
-        } else {
-            // If we have a placemark but no good name, show coordinates
-            name = "Location (\(String(format: "%.1f", coordinate.latitude))°, \(String(format: "%.1f", coordinate.longitude))°)"
+            return country
         }
         
-        return name
+        // Return nil if we don't have a real place name (this will cause retry)
+        return nil
+    }
+    
+    /// Generate latitude with bias towards populated regions
+    private func generateWeightedLatitude() -> Double {
+        // Most populated areas are between -50 and 60 degrees latitude
+        let random = Double.random(in: 0...1)
+        
+        if random < 0.8 {
+            // 80% chance: populated temperate zones (-40 to 60)
+            return Double.random(in: -40...60)
+        } else if random < 0.95 {
+            // 15% chance: tropical zones (-23.5 to 23.5)
+            return Double.random(in: -23.5...23.5)
+        } else {
+            // 5% chance: anywhere else (-90 to 90)
+            return Double.random(in: -90...90)
+        }
     }
     
     /// Check if a location is likely uninhabited
@@ -107,8 +106,7 @@ class LocationService {
         // If there's no locality, sublocality, or administrative area, it's likely uninhabited
         if placemark.locality == nil &&
            placemark.subLocality == nil &&
-           placemark.administrativeArea == nil &&
-           placemark.country != nil {
+           placemark.administrativeArea == nil {
             return true
         }
         
