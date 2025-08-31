@@ -18,6 +18,8 @@ struct ContentView: View {
     @State private var resultMessage = ""
     @State private var score = 0
     @State private var showingMapPicker = false
+    @State private var showTimer = false
+    @State private var drinkingSeconds = 0
     
     var body: some View {
         VStack(spacing: 30) {
@@ -47,23 +49,35 @@ struct ContentView: View {
                     .foregroundStyle(.primary)
             }
             
-            VStack(spacing: 20) {
-                TextField("Enter temperature (°F)", text: $userGuess)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .keyboardType(.numberPad)
-                    .font(.title2)
-                    .multilineTextAlignment(.center)
-                
-                Button("Submit Guess") {
-                    Task {
-                        await submitGuess()
+            if showTimer {
+                DrinkingTimerView(
+                    duration: drinkingSeconds,
+                    onComplete: {
+                        nextTurn()
+                    },
+                    onSkip: {
+                        nextTurn()
                     }
+                )
+            } else {
+                VStack(spacing: 20) {
+                    TextField("Enter temperature (°F)", text: $userGuess)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .keyboardType(.numberPad)
+                        .font(.title2)
+                        .multilineTextAlignment(.center)
+                    
+                    Button("Submit Guess") {
+                        Task {
+                            await submitGuess()
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .font(.headline)
+                    .disabled(userGuess.isEmpty)
                 }
-                .buttonStyle(.borderedProminent)
-                .font(.headline)
-                .disabled(userGuess.isEmpty)
+                .padding(.horizontal)
             }
-            .padding(.horizontal)
             
             Text("Score: \(score)")
                 .font(.title3)
@@ -71,28 +85,37 @@ struct ContentView: View {
             
             Spacer()
             
-            VStack(spacing: 15) {
-                HStack(spacing: 20) {
-                    Button("Choose on Map") {
-                        showingMapPicker = true
+            if !showTimer {
+                VStack(spacing: 15) {
+                    HStack(spacing: 20) {
+                        Button("Choose on Map") {
+                            showingMapPicker = true
+                        }
+                        .buttonStyle(.borderedProminent)
+                        
+                        Button("Random Location") {
+                            newRandomLocation()
+                        }
+                        .buttonStyle(.bordered)
                     }
-                    .buttonStyle(.borderedProminent)
                     
-                    Button("Random Location") {
-                        newRandomLocation()
+                    Button("Reset Game") {
+                        resetGame()
                     }
                     .buttonStyle(.bordered)
                 }
-                
-                Button("Reset Game") {
-                    resetGame()
-                }
-                .buttonStyle(.bordered)
             }
         }
         .padding()
         .alert("Result", isPresented: $showResult) {
-            Button("Next Turn") {
+            Button("Start Drinking Timer") {
+                if drinkingSeconds > 0 {
+                    startTimer()
+                } else {
+                    nextTurn()
+                }
+            }
+            Button("Skip Drinking") {
                 nextTurn()
             }
         } message: {
@@ -129,22 +152,30 @@ struct ContentView: View {
         }
         
         let diff = abs(guess - actualTemp)
+        drinkingSeconds = diff // Set drinking duration based on difference
         
         if diff == 0 {
-            resultMessage = "🎉 Exact! The temperature was \(actualTemp)°F. +10 points!"
+            resultMessage = "🎉 Exact! The temperature was \(actualTemp)°F. No drinking required! +10 points!"
             score += 10
         } else if diff <= 5 {
-            resultMessage = "🔥 Close! The temperature was \(actualTemp)°F. You were off by \(diff)°. +5 points!"
+            resultMessage = "🔥 Close! The temperature was \(actualTemp)°F. You were off by \(diff)° - drink for \(diff) seconds! +5 points!"
             score += 5
         } else {
-            resultMessage = "❄️ The temperature was \(actualTemp)°F. You were off by \(diff)°. -\(diff) points!"
+            resultMessage = "❄️ The temperature was \(actualTemp)°F. You were off by \(diff)° - drink for \(diff) seconds! -\(diff) points!"
             score -= diff
         }
         showResult = true
     }
     
+    func startTimer() {
+        showResult = false
+        showTimer = true
+    }
+    
     func nextTurn() {
+        showTimer = false
         userGuess = ""
+        drinkingSeconds = 0
         // Keep the current location for the next player, or generate a new one
     }
     
@@ -164,10 +195,12 @@ struct ContentView: View {
     }
     
     func resetGame() {
+        showTimer = false
         score = 0
         userGuess = ""
         currentPlayer = "Player 1"
         targetCoordinate = nil
+        drinkingSeconds = 0
         newRandomLocation()
     }
 }
