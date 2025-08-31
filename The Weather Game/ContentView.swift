@@ -6,15 +6,18 @@
 //
 
 import SwiftUI
+import MapKit
 
 struct ContentView: View {
     @State private var currentPlayer = "Player 1"
     @State private var targetLocation = "New York"
+    @State private var targetCoordinate: CLLocationCoordinate2D?
     @State private var userGuess = ""
     @State private var actualTemp = 72
     @State private var showResult = false
     @State private var resultMessage = ""
     @State private var score = 0
+    @State private var showingMapPicker = false
     
     var body: some View {
         VStack(spacing: 30) {
@@ -68,11 +71,18 @@ struct ContentView: View {
             
             Spacer()
             
-            HStack(spacing: 20) {
-                Button("New Location") {
-                    newRandomLocation()
+            VStack(spacing: 15) {
+                HStack(spacing: 20) {
+                    Button("Choose on Map") {
+                        showingMapPicker = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                    
+                    Button("Random Location") {
+                        newRandomLocation()
+                    }
+                    .buttonStyle(.bordered)
                 }
-                .buttonStyle(.bordered)
                 
                 Button("Reset Game") {
                     resetGame()
@@ -88,16 +98,31 @@ struct ContentView: View {
         } message: {
             Text(resultMessage)
         }
+        .sheet(isPresented: $showingMapPicker) {
+            WeatherMapPickerView { coordinate, locationName in
+                // Only update if a valid location was selected (not cancelled)
+                if coordinate.latitude != 0 || coordinate.longitude != 0 {
+                    targetCoordinate = coordinate
+                    targetLocation = locationName
+                }
+                showingMapPicker = false
+            }
+        }
     }
     
-    //Core Logic Functions
+    // MARK: - Core Logic Functions
     
     func submitGuess() async {
         guard let guess = Int(userGuess) else { return }
         let weatherService = WeatherService()
         
         do {
-            actualTemp = try await weatherService.getTemp(for: targetLocation)
+            // Use coordinates if available, otherwise fall back to city name
+            if let coordinate = targetCoordinate {
+                actualTemp = try await weatherService.getTemp(lat: coordinate.latitude, lon: coordinate.longitude)
+            } else {
+                actualTemp = try await weatherService.getTemp(for: targetLocation)
+            }
         } catch {
             actualTemp = 70
             print("Weather API failed: \(error)")
@@ -120,7 +145,7 @@ struct ContentView: View {
     
     func nextTurn() {
         userGuess = ""
-        newRandomLocation()
+        // Keep the current location for the next player, or generate a new one
     }
     
     func newRandomLocation() {
@@ -135,12 +160,14 @@ struct ContentView: View {
             "Boston"
         ]
         targetLocation = locations.randomElement() ?? "New York"
+        targetCoordinate = nil // Clear coordinate when using random location
     }
     
     func resetGame() {
         score = 0
         userGuess = ""
         currentPlayer = "Player 1"
+        targetCoordinate = nil
         newRandomLocation()
     }
 }

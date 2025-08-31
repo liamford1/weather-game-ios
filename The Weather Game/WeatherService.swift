@@ -31,4 +31,16 @@ class WeatherService {
         let weatherResponse = try JSONDecoder().decode(WeatherResponse.self, from: data)
         return Int(weatherResponse.main.temp.rounded())
     }
+    
+    func getTemp(lat: Double, lon: Double) async throws -> Int {
+        let urlString = "https://api.openweathermap.org/data/2.5/weather?lat=\(lat)&lon=\(lon)&appid=\(apiKey)&units=imperial"
+        
+        guard let url = URL(string: urlString) else {
+            throw URLError(.badURL)
+        }
+        
+        let (data, _) = try await URLSession.shared.data(from: url)
+        let weatherResponse = try JSONDecoder().decode(WeatherResponse.self, from: data)
+        return Int(weatherResponse.main.temp.rounded())
+    }
 }
